@@ -49,6 +49,12 @@ namespace Plist
 		typedef std::vector<char>                    data_type;
 		typedef bool                                 boolean_type;
 
+		struct UID
+		{
+			uint64_t data;
+		};
+		typedef UID                                      uid_type;
+
 		// Public read methods.  Plist type (binary or xml) automatically detected.
 
 		void readPlist(const char* byteArrayTemp, int64_t size, boost::any& message);

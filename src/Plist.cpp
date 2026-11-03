@@ -119,9 +119,10 @@ namespace Plist {
 		array_type  parseBinaryArray(const PlistHelperData& d, int objRef);
 		std::vector<int32_t> getRefsForContainers(const PlistHelperData& d, int objRef);
 		int64_t parseBinaryInt(const PlistHelperData& d, int headerPosition, int& intByteCount);
+		uid_type parseBinaryUID(const PlistHelperData& d, int headerPosition);
 		double parseBinaryReal(const PlistHelperData& d, int headerPosition);
 		Date parseBinaryDate(const PlistHelperData& d, int headerPosition);
-		bool parseBinaryBool(const PlistHelperData& d, int headerPosition);
+		boost::any parseBinaryBool(const PlistHelperData& d, int headerPosition);
 		std::string parseBinaryString(const PlistHelperData& d, int objRef);
 		std::string parseBinaryUnicode(const PlistHelperData& d, int headerPosition);
 		data_type parseBinaryByteArray(const PlistHelperData& d, int headerPosition);
@@ -928,6 +929,10 @@ boost::any parseBinary(const PlistHelperData& d, int objRef)
 			{
 				return parseBinaryUnicode(d, d._offsetTable[objRef]);
 			}
+		case 0x80:
+			{
+				return parseBinaryUID(d, d._offsetTable[objRef]);
+			}
 		case 0xD0:
 			{
 				return parseBinaryDictionary(d, objRef);
@@ -1042,6 +1047,18 @@ int64_t parseBinaryInt(const PlistHelperData& d, int headerPosition, int& intByt
 
 	return bytesToInt<int64_t>(vecData(regulateNullBytes(buffer, 8)), hostLittleEndian());
 }
+uid_type parseBinaryUID(const PlistHelperData& d, int headerPosition)
+{
+	unsigned char header = d._objectTable[headerPosition];
+	int byteCount = (header & 0xf) + 1;
+	std::vector<unsigned char> buffer = getRange(d._objectTable, headerPosition + 1, byteCount);
+	reverse(buffer.begin(), buffer.end());
+
+	uid_type uid;
+	uid.data = bytesToInt<uint64_t>(vecData(regulateNullBytes(buffer, 8)), hostLittleEndian());
+
+	return uid;
+}
 
 double parseBinaryReal(const PlistHelperData& d, int headerPosition)
 {
@@ -1053,7 +1070,7 @@ double parseBinaryReal(const PlistHelperData& d, int headerPosition)
 	return bytesToDouble(vecData(regulateNullBytes(buffer, 8)), hostLittleEndian());
 }
 
-bool parseBinaryBool(const PlistHelperData& d, int headerPosition)
+boost::any parseBinaryBool(const PlistHelperData& d, int headerPosition)
 {
 	unsigned char header = d._objectTable[headerPosition];
 	bool value;
@@ -1062,19 +1079,9 @@ bool parseBinaryBool(const PlistHelperData& d, int headerPosition)
 	else if (header == 0x08)
 		value = false;
 	else if (header == 0x00)
-	{
-		// null byte, not sure yet what to do with this.  It's in the spec but we
-		// have never encountered it.
-
-		throw Error("Plist: null byte encountered, unsure how to parse");
-	}
+		return boost::any();
 	else if (header == 0x0F)
-	{
-		// fill byte, not sure yet what to do with this.  It's in the spec but we
-		// have never encountered it.
-
-		throw Error("Plist: fill byte encountered, unsure how to parse");
-	}
+		return data_type();
 	else
 	{
 		std::stringstream ss;
